@@ -34,6 +34,10 @@ export type {
   SiftTag,
   GetArticlesOptions,
   SiftApiError,
+  SubscribeRequest,
+  SubscribeResponse,
+  CommentCreate,
+  SiftComment,
 } from './types.js';
 
 export { SiftError } from './types.js';

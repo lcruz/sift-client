@@ -6,10 +6,14 @@ import type {
   SiftBlogMeta,
   SiftTag,
   GetArticlesOptions,
+  SubscribeRequest,
+  SubscribeResponse,
+  CommentCreate,
+  SiftComment,
 } from './types.js';
 import { SiftError } from './types.js';
 
-const DEFAULT_API_URL = 'https://api.sift.app';
+const DEFAULT_API_URL = 'https://sift.cl';
 const DEFAULT_TIMEOUT = 10000;
 
 /**
@@ -43,7 +47,7 @@ export class SiftClient {
   /**
    * Internal fetch wrapper with error handling
    */
-  private async fetch<T>(endpoint: string): Promise<T> {
+  private async fetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${this.apiUrl}/api/v1/blog/${this.blogId}${endpoint}`;
 
     const controller = new AbortController();
@@ -51,10 +55,12 @@ export class SiftClient {
 
     try {
       const response = await fetch(url, {
-        method: 'GET',
+        method: options?.method || 'GET',
         headers: {
           'Content-Type': 'application/json',
+          ...options?.headers,
         },
+        body: options?.body,
         signal: controller.signal,
       });
 
@@ -278,6 +284,116 @@ export class SiftClient {
    */
   getSitemapUrl(): string {
     return `${this.apiUrl}/api/v1/blog/${this.blogId}/sitemap.xml`;
+  }
+
+  /**
+   * Get all articles (for static site generation)
+   *
+   * @example
+   * ```typescript
+   * const allArticles = await sift.getAllArticles();
+   * ```
+   */
+  async getAllArticles(): Promise<SiftArticleSummary[]> {
+    const allArticles: SiftArticleSummary[] = [];
+    let page = 1;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await this.getArticles({ page, perPage: 50 });
+      allArticles.push(...response.articles);
+      hasMore = page < response.totalPages;
+      page++;
+    }
+
+    return allArticles;
+  }
+
+  /**
+   * Subscribe to newsletter
+   *
+   * @example
+   * ```typescript
+   * await sift.subscribe({ email: 'user@example.com', name: 'John' });
+   * ```
+   */
+  async subscribe(data: SubscribeRequest): Promise<SubscribeResponse> {
+    return this.fetch<SubscribeResponse>('/subscribe', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  /**
+   * Get comments for an article
+   *
+   * @example
+   * ```typescript
+   * const comments = await sift.getComments('my-article-slug');
+   * ```
+   */
+  async getComments(articleSlug: string): Promise<SiftComment[]> {
+    try {
+      const data = await this.fetch<
+        Array<{
+          id: string;
+          article_id: string;
+          author_name: string;
+          content: string;
+          status: string;
+          created_at: string;
+        }>
+      >(`/articles/${encodeURIComponent(articleSlug)}/comments`);
+
+      return data.map((c) => ({
+        id: c.id,
+        articleId: c.article_id,
+        authorName: c.author_name,
+        content: c.content,
+        status: c.status,
+        createdAt: c.created_at,
+      }));
+    } catch (error) {
+      if (error instanceof SiftError && error.status === 404) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Post a comment on an article
+   *
+   * @example
+   * ```typescript
+   * const comment = await sift.postComment('my-article-slug', {
+   *   author_name: 'John',
+   *   author_email: 'john@example.com',
+   *   content: 'Great article!',
+   * });
+   * ```
+   */
+  async postComment(articleSlug: string, data: CommentCreate): Promise<SiftComment> {
+    const response = await this.fetch<{
+      id: string;
+      article_id: string;
+      author_name: string;
+      content: string;
+      status: string;
+      created_at: string;
+    }>(`/articles/${encodeURIComponent(articleSlug)}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+
+    return {
+      id: response.id,
+      articleId: response.article_id,
+      authorName: response.author_name,
+      content: response.content,
+      status: response.status,
+      createdAt: response.created_at,
+    };
   }
 }
 

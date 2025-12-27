@@ -103,3 +103,41 @@ export class SiftError extends Error {
     this.detail = detail;
   }
 }
+
+/**
+ * Subscribe request
+ */
+export interface SubscribeRequest {
+  email: string;
+  name?: string;
+  source?: string;
+}
+
+/**
+ * Subscribe response
+ */
+export interface SubscribeResponse {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Comment create request
+ */
+export interface CommentCreate {
+  author_name: string;
+  author_email: string;
+  content: string;
+}
+
+/**
+ * Comment response
+ */
+export interface SiftComment {
+  id: string;
+  articleId: string;
+  authorName: string;
+  content: string;
+  status: string;
+  createdAt: string;
+}
